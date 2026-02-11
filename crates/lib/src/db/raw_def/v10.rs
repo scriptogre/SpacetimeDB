@@ -83,6 +83,25 @@ pub enum RawModuleDefV10Section {
     LifeCycleReducers(Vec<RawLifeCycleReducerDefV10>),
 
     RowLevelSecurity(Vec<RawRowLevelSecurityDefV10>), //TODO: Add section for Event tables, and Case conversion before exposing this from module
+
+    CaseConversionPolicy(CaseConversionPolicy),
+}
+
+/// Specifies how identifiers should be converted when interpreting module definitions.
+#[derive(Debug, Clone, Copy, Default, SpacetimeType)]
+#[cfg_attr(feature = "test", derive(PartialEq, Eq, PartialOrd, Ord))]
+#[sats(crate = crate)]
+#[non_exhaustive]
+pub enum CaseConversionPolicy {
+    /// No conversion - names used verbatim as canonical names
+    None,
+    /// Convert to snake_case (SpacetimeDB default)
+    #[default]
+    SnakeCase,
+    /// Convert to camelCase
+    CamelCase,
+    /// Convert to PascalCase (UpperCamelCase)
+    PascalCase,
 }
 
 pub type RawRowLevelSecurityDefV10 = crate::db::raw_def::v9::RawRowLevelSecurityDefV9;
@@ -289,17 +308,8 @@ pub struct RawIndexDefV10 {
     /// Even though there is ABSOLUTELY NO REASON TO.
     pub source_name: Option<RawIdentifier>,
 
-    /// Accessor name for the index used in client codegen.
-    ///
-    /// This is set the user and should not be assumed to follow
-    /// any particular format.
-    ///
-    /// May be set to `None` if this is an auto-generated index for which the user
-    /// has not supplied a name. In this case, no client code generation for this index
-    /// will be performed.
-    ///
-    /// This name is not visible in the system tables, it is only used for client codegen.
-    pub accessor_name: Option<RawIdentifier>,
+    /// Canonical name
+    pub name: Option<RawIdentifier>,
 
     /// The algorithm parameters for the index.
     pub algorithm: RawIndexAlgorithm,
@@ -488,6 +498,16 @@ impl RawModuleDefV10 {
             RawModuleDefV10Section::RowLevelSecurity(rls) => Some(rls),
             _ => None,
         })
+    }
+
+    pub fn case_conversion_policy(&self) -> CaseConversionPolicy {
+        self.sections
+            .iter()
+            .find_map(|s| match s {
+                RawModuleDefV10Section::CaseConversionPolicy(policy) => Some(*policy),
+                _ => None,
+            })
+            .unwrap_or_default()
     }
 }
 
@@ -1045,8 +1065,8 @@ impl RawTableDefBuilderV10<'_> {
         let accessor_name = accessor_name.into();
 
         self.table.indexes.push(RawIndexDefV10 {
-            source_name: index_name.map(Into::into),
-            accessor_name: Some(accessor_name),
+            name: index_name.map(Into::into),
+            source_name: Some(accessor_name),
             algorithm,
         });
         self
@@ -1056,7 +1076,7 @@ impl RawTableDefBuilderV10<'_> {
     pub fn with_index_no_accessor_name(mut self, algorithm: RawIndexAlgorithm) -> Self {
         self.table.indexes.push(RawIndexDefV10 {
             source_name: None,
-            accessor_name: None,
+            name: None,
             algorithm,
         });
         self
