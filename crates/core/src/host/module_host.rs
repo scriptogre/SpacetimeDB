@@ -1923,6 +1923,43 @@ impl ModuleHost {
         .await
     }
 
+    /// Call an HTTP route handler as a procedure.
+    ///
+    /// Constructs a `ProcedureOp` with raw wire-format request bytes (not BSATN),
+    /// dispatches through the existing procedure call path.
+    /// Identity is ZERO (HTTP routes are anonymous).
+    pub async fn call_route_as_procedure(
+        &self,
+        procedure_id: ProcedureId,
+        procedure_name: Identifier,
+        request_bytes: Vec<u8>,
+    ) -> Result<Bytes, anyhow::Error> {
+        let params = CallProcedureParams {
+            timestamp: Timestamp::now(),
+            caller_identity: Identity::ZERO,
+            caller_connection_id: ConnectionId::ZERO,
+            timer: None,
+            procedure_id,
+            args: ArgsTuple::from_raw_bsatn(request_bytes.into()),
+        };
+
+        let result = self
+            .call_procedure_with_params(&procedure_name.to_string(), params)
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+        match result.result {
+            Ok(pcr) => {
+                let response_bytes = pcr
+                    .return_val
+                    .into_bytes()
+                    .map_err(|_| anyhow::anyhow!("Route procedure did not return bytes"))?;
+                Ok(Bytes::from(response_bytes.into_vec()))
+            }
+            Err(err) => Err(anyhow::anyhow!("Route procedure failed: {err}")),
+        }
+    }
+
     pub(super) async fn call_scheduled_function(
         &self,
         params: ScheduledFunctionParams,

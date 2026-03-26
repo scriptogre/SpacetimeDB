@@ -355,6 +355,12 @@ pub struct RawProcedureDefV10 {
 
     /// Whether this procedure is callable from clients or is internal-only.
     pub visibility: FunctionVisibility,
+
+    /// If this procedure is an HTTP route handler, the HTTP method (e.g. "GET", "POST").
+    pub route_method: Option<Box<str>>,
+
+    /// If this procedure is an HTTP route handler, the URL path pattern (e.g. "/", "/brick/:id").
+    pub route_path: Option<Box<str>>,
 }
 
 /// A sequence definition for a database table column.
@@ -973,6 +979,8 @@ impl RawModuleDefV10Builder {
             params,
             return_type,
             visibility: FunctionVisibility::ClientCallable,
+            route_method: None,
+            route_path: None,
         })
     }
 
@@ -994,6 +1002,23 @@ impl RawModuleDefV10Builder {
             params,
             return_type,
         });
+    }
+
+    /// Add an HTTP route as a procedure to the in-progress module.
+    pub fn add_route_procedure(
+        &mut self,
+        source_name: impl Into<RawIdentifier>,
+        method: impl Into<Box<str>>,
+        path: impl Into<Box<str>>,
+    ) {
+        self.procedures_mut().push(RawProcedureDefV10 {
+            source_name: source_name.into(),
+            params: ProductType::unit(),
+            return_type: AlgebraicType::bytes(),
+            visibility: FunctionVisibility::ClientCallable,
+            route_method: Some(method.into()),
+            route_path: Some(path.into()),
+        })
     }
 
     /// Add a lifecycle reducer assignment to the module.

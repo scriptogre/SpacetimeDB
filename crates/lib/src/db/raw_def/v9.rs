@@ -588,6 +588,12 @@ pub struct RawProcedureDefV9 {
     /// If this is a user-defined product or sum type,
     /// it should be registered in the typespace and indirected through an [`AlgebraicType::Ref`].
     pub return_type: AlgebraicType,
+
+    /// If this procedure is an HTTP route handler, the HTTP method (e.g. "GET", "POST").
+    pub route_method: Option<Box<str>>,
+
+    /// If this procedure is an HTTP route handler, the URL path pattern (e.g. "/", "/brick/:id").
+    pub route_path: Option<Box<str>>,
 }
 
 /// A builder for a [`RawModuleDefV9`].
@@ -784,6 +790,8 @@ impl RawModuleDefV9Builder {
                 name: name.into(),
                 params,
                 return_type,
+                route_method: None,
+                route_path: None,
             }))
     }
 
@@ -804,6 +812,24 @@ impl RawModuleDefV9Builder {
             params,
             return_type,
         }));
+    }
+
+    /// Add an HTTP route as a procedure to the in-progress module.
+    pub fn add_route_procedure(
+        &mut self,
+        name: impl Into<RawIdentifier>,
+        method: impl Into<Box<str>>,
+        path: impl Into<Box<str>>,
+    ) {
+        self.module
+            .misc_exports
+            .push(RawMiscModuleExportV9::Procedure(RawProcedureDefV9 {
+                name: name.into(),
+                params: ProductType::unit(),
+                return_type: AlgebraicType::bytes(),
+                route_method: Some(method.into()),
+                route_path: Some(path.into()),
+            }))
     }
 
     /// Add a row-level security policy to the module.

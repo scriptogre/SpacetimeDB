@@ -72,6 +72,8 @@ pub fn validate(def: RawModuleDefV9) -> Result<ModuleDef> {
             matches!(misc_export, RawMiscModuleExportV9::View(_))
         });
 
+    // No more route partitioning — routes are now procedures with route metadata.
+
     let procedures = procedures
         .into_iter()
         .map(|procedure| {
@@ -383,6 +385,8 @@ impl ModuleValidatorV9<'_> {
             name,
             params,
             return_type,
+            route_method,
+            route_path,
         } = procedure_def;
 
         let params_for_generate =
@@ -418,6 +422,8 @@ impl ModuleValidatorV9<'_> {
             return_type,
             return_type_for_generate,
             visibility: FunctionVisibility::ClientCallable,
+            route_method,
+            route_path,
         })
     }
 
@@ -1585,8 +1591,11 @@ fn check_non_procedure_misc_exports(
         .into_iter()
         .map(|export| match export {
             RawMiscModuleExportV9::ColumnDefaultValue(cdv) => process_column_default_value(&cdv, validator, tables),
-            RawMiscModuleExportV9::Procedure(_proc) => {
+            RawMiscModuleExportV9::Procedure(_) => {
                 unreachable!("Procedure defs should already have been sorted out of `misc_exports`")
+            }
+            RawMiscModuleExportV9::View(_) => {
+                unreachable!("View defs should already have been sorted out of `misc_exports`")
             }
             _ => unimplemented!("unknown misc export"),
         })

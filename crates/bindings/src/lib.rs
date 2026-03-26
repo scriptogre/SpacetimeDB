@@ -14,6 +14,7 @@ pub mod log_stopwatch;
 mod logger;
 #[cfg(feature = "rand08")]
 mod rng;
+pub mod route_types;
 #[doc(hidden)]
 pub mod rt;
 #[doc(hidden)]
@@ -774,6 +775,25 @@ pub use spacetimedb_bindings_macro::reducer;
 #[doc(inline)]
 #[cfg(feature = "unstable")]
 pub use spacetimedb_bindings_macro::procedure;
+
+/// Marks a function as an HTTP GET route handler.
+#[doc(inline)]
+pub use spacetimedb_bindings_macro::get;
+
+/// Marks a function as an HTTP POST route handler.
+#[doc(inline)]
+pub use spacetimedb_bindings_macro::post;
+
+/// Marks a function as an HTTP PUT route handler.
+#[doc(inline)]
+pub use spacetimedb_bindings_macro::put;
+
+/// Marks a function as an HTTP DELETE route handler.
+#[doc(inline)]
+pub use spacetimedb_bindings_macro::delete;
+
+// Re-export route response types for convenient use in modules.
+pub use route_types::{Html, HttpRequest, HttpResponse, IntoRouteResponse, Json, Redirect};
 
 /// Marks a function as a spacetimedb view.
 ///

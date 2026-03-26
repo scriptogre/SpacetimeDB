@@ -1,3 +1,4 @@
+use indexmap::IndexMap;
 use spacetimedb_data_structures::map::HashMap;
 use spacetimedb_lib::bsatn::Deserializer;
 use spacetimedb_lib::db::raw_def::v10::*;
@@ -627,6 +628,8 @@ impl<'a> ModuleValidatorV10<'a> {
             params,
             return_type,
             visibility,
+            route_method,
+            route_path,
         } = procedure_def;
 
         let params_for_generate =
@@ -666,6 +669,8 @@ impl<'a> ModuleValidatorV10<'a> {
             return_type,
             return_type_for_generate,
             visibility: visibility.into(),
+            route_method,
+            route_path,
         })
     }
 

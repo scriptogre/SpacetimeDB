@@ -9,6 +9,7 @@ pub mod health;
 pub mod identity;
 mod internal;
 pub mod metrics;
+pub mod module_routes;
 pub mod prometheus;
 pub mod subscribe;
 
@@ -43,7 +44,19 @@ where
         .allow_methods(cors::Any)
         .allow_origin(cors::Any);
 
-    axum::Router::new()
+    let mut app = axum::Router::new()
         .nest("/v1", router.layer(cors))
-        .nest("/internal", internal::router())
+        .nest("/internal", internal::router());
+
+    // Serve static files from SPACETIMEDB_STATIC_DIR if configured.
+    // Files are served at their natural paths (e.g., /js/htmx.min.js)
+    // and take priority over module routes for matching paths.
+    if let Ok(static_dir) = std::env::var("SPACETIMEDB_STATIC_DIR") {
+        use tower_http::services::ServeDir;
+        app = app.nest_service("/static", ServeDir::new(static_dir));
+    }
+
+    app = app.fallback(module_routes::module_route_fallback::<S>);
+
+    app
 }

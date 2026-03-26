@@ -339,6 +339,21 @@ impl ModuleDef {
         self.procedures.get_index(id.idx()).map(|(_, def)| def)
     }
 
+    /// Find a route-procedure matching the given HTTP method and path.
+    pub fn find_route_procedure(&self, method: &str, path: &str) -> Option<(ProcedureId, &ProcedureDef)> {
+        self.procedures
+            .values()
+            .enumerate()
+            .find(|(_, def)| {
+                if let (Some(m), Some(p)) = (&def.route_method, &def.route_path) {
+                    m.eq_ignore_ascii_case(method) && route_path_matches(p, path)
+                } else {
+                    false
+                }
+            })
+            .map(|(idx, def)| (ProcedureId(idx as u32), def))
+    }
+
     /// Looks up a lifecycle reducer defined in the module.
     pub fn lifecycle_reducer(&self, lifecycle: Lifecycle) -> Option<(ReducerId, &ReducerDef)> {
         self.lifecycle_reducers[lifecycle].map(|i| (i, &self.reducers[i.idx()]))
@@ -1740,6 +1755,12 @@ pub struct ProcedureDef {
 
     /// The visibility of this procedure.
     pub visibility: FunctionVisibility,
+
+    /// If this procedure is an HTTP route handler, the HTTP method (e.g. "GET", "POST").
+    pub route_method: Option<Box<str>>,
+
+    /// If this procedure is an HTTP route handler, the URL path pattern (e.g. "/", "/brick/:id").
+    pub route_path: Option<Box<str>>,
 }
 
 impl From<ProcedureDef> for RawProcedureDefV9 {
@@ -1748,6 +1769,8 @@ impl From<ProcedureDef> for RawProcedureDefV9 {
             name: val.name.into(),
             params: val.params,
             return_type: val.return_type,
+            route_method: val.route_method,
+            route_path: val.route_path,
         }
     }
 }
@@ -1759,6 +1782,8 @@ impl From<ProcedureDef> for RawProcedureDefV10 {
             params: val.params,
             return_type: val.return_type,
             visibility: val.visibility.into(),
+            route_method: val.route_method,
+            route_path: val.route_path,
         }
     }
 }
@@ -1767,6 +1792,21 @@ impl From<ProcedureDef> for RawMiscModuleExportV9 {
     fn from(def: ProcedureDef) -> Self {
         Self::Procedure(def.into())
     }
+}
+
+/// Check if a route path pattern matches a request path.
+/// Supports `:param` segments for path parameters.
+pub fn route_path_matches(pattern: &str, path: &str) -> bool {
+    let pattern_parts: Vec<&str> = pattern.split('/').collect();
+    let path_parts: Vec<&str> = path.split('/').collect();
+
+    if pattern_parts.len() != path_parts.len() {
+        return false;
+    }
+
+    pattern_parts.iter().zip(path_parts.iter()).all(|(pat, val)| {
+        pat.starts_with(':') || *pat == *val
+    })
 }
 
 impl ModuleDefLookup for TableDef {
@@ -2031,5 +2071,32 @@ mod tests {
             .filter(|e| matches!(e, ValidationError::ColumnDefaultValueMalformed { .. }))
             .count()
             == 2))
+    }
+
+    #[test]
+    fn route_path_matches_exact() {
+        assert!(route_path_matches("/", "/"));
+        assert!(route_path_matches("/hello", "/hello"));
+        assert!(route_path_matches("/a/b/c", "/a/b/c"));
+    }
+
+    #[test]
+    fn route_path_matches_with_params() {
+        assert!(route_path_matches("/brick/:id", "/brick/42"));
+        assert!(route_path_matches("/user/:id/edit", "/user/5/edit"));
+        assert!(route_path_matches("/:a/:b", "/foo/bar"));
+    }
+
+    #[test]
+    fn route_path_no_match_different_length() {
+        assert!(!route_path_matches("/a/b", "/a"));
+        assert!(!route_path_matches("/a", "/a/b"));
+        assert!(!route_path_matches("/brick/:id/edit", "/brick/42"));
+    }
+
+    #[test]
+    fn route_path_no_match_different_segments() {
+        assert!(!route_path_matches("/brick", "/block"));
+        assert!(!route_path_matches("/a/b/c", "/a/x/c"));
     }
 }

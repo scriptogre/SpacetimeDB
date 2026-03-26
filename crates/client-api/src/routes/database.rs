@@ -274,7 +274,7 @@ fn client_disconnected_error_to_response(err: ReducerCallError) -> ErrorResponse
     (StatusCode::INTERNAL_SERVER_ERROR, format!("{:#}", anyhow::anyhow!(err))).into()
 }
 
-async fn find_leader_and_database<S: ControlStateDelegate + NodeDelegate>(
+pub(crate) async fn find_leader_and_database<S: ControlStateDelegate + NodeDelegate>(
     worker_ctx: &S,
     name_or_identity: NameOrIdentity,
 ) -> axum::response::Result<(Host, Database)> {

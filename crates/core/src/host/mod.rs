@@ -92,6 +92,16 @@ impl ArgsTuple {
         }
     }
 
+    /// Create an `ArgsTuple` from raw bytes that will be passed through as-is.
+    /// Used for route-procedures where the bytes are wire-format, not BSATN.
+    pub fn from_raw_bsatn(bytes: Bytes) -> Self {
+        ArgsTuple {
+            tuple: spacetimedb_sats::product![],
+            bsatn: OnceCell::with_value(bytes),
+            json: OnceCell::new(),
+        }
+    }
+
     pub fn get_bsatn(&self) -> &Bytes {
         self.bsatn.get_or_init(|| bsatn::to_vec(&self.tuple).unwrap().into())
     }

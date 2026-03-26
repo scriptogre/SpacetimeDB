@@ -69,6 +69,44 @@ pub fn invoke_procedure<'a, A: Args<'a>, Ret: IntoProcedureResult>(
     res.to_result()
 }
 
+/// A trait for types representing the *execution logic* of a route handler.
+///
+/// Route handlers take `(&mut ProcedureContext, HttpRequest)` and return `impl IntoRouteResponse`.
+#[cfg(feature = "unstable")]
+pub trait RouteHandler<R: crate::IntoRouteResponse> {
+    fn invoke(&self, ctx: &mut ProcedureContext, req: crate::HttpRequest) -> R;
+}
+
+/// Blanket impl: any `Fn(&mut ProcedureContext, HttpRequest) -> R` is a RouteHandler.
+#[cfg(feature = "unstable")]
+impl<F, R> RouteHandler<R> for F
+where
+    F: Fn(&mut ProcedureContext, crate::HttpRequest) -> R,
+    R: crate::IntoRouteResponse,
+{
+    fn invoke(&self, ctx: &mut ProcedureContext, req: crate::HttpRequest) -> R {
+        self(ctx, req)
+    }
+}
+
+/// Invoke a route handler as a procedure.
+///
+/// Decodes `HttpRequest` from raw arg bytes, calls the handler,
+/// encodes the response via `IntoRouteResponse`.
+#[cfg(feature = "unstable")]
+pub fn invoke_route_procedure<R: crate::IntoRouteResponse>(
+    route: impl RouteHandler<R>,
+    ctx: &mut ProcedureContext,
+    args: &[u8],
+) -> ProcedureResult {
+    let response_bytes = match crate::HttpRequest::decode(args) {
+        Some(req) => route.invoke(ctx, req).into_route_response().encode(),
+        None => crate::HttpResponse::status(500).text("Failed to decode request").encode(),
+    };
+    // BSATN-encode as Vec<u8> so the host can deserialize as AlgebraicType::bytes().
+    spacetimedb_lib::bsatn::to_vec(&response_bytes).unwrap()
+}
+
 /// A trait for types representing the *execution logic* of a reducer.
 #[expect(clippy::duplicated_attributes, reason = "false positive")]
 #[diagnostic::on_unimplemented(
@@ -459,6 +497,7 @@ pub struct FnKindProcedure<Ret> {
     _never: Infallible,
     _ret_ty: PhantomData<fn() -> Ret>,
 }
+
 
 /// Tacit marker argument to [`ExportFunctionForScheduledTable`] for views.
 ///
@@ -858,6 +897,15 @@ pub fn register_row_level_security(sql: &'static str) {
     })
 }
 
+/// Registers an HTTP route as a procedure with route metadata.
+#[cfg(feature = "unstable")]
+pub fn register_route_procedure<I: FnInfo<Invoke = ProcedureFn>>(method: &'static str, path: &'static str) {
+    register_describer(move |module| {
+        module.inner.add_route_procedure(I::NAME, method, path);
+        module.procedures.push(I::INVOKE);
+    })
+}
+
 /// Set the case conversion policy for this module.
 ///
 /// This is called by the `#[spacetimedb::settings]` attribute macro.
@@ -939,7 +987,7 @@ extern "C" fn __describe_module__(description: BytesSink) {
     let module_def = RawModuleDef::V10(module_def);
     let bytes = bsatn::to_vec(&module_def).expect("unable to serialize typespace");
 
-    // Write the sets of reducers, procedures and views.
+    // Write the sets of reducers, procedures, and views.
     REDUCERS.set(module.reducers).ok().unwrap();
     #[cfg(feature = "unstable")]
     PROCEDURES.set(module.procedures).ok().unwrap();

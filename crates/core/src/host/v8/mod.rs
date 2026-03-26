@@ -1417,6 +1417,7 @@ impl WasmInstance for V8Instance<'_, '_, '_> {
             .take_procedure_tx_offset();
         (result, tx_offset)
     }
+
 }
 
 fn common_call<'scope, R, O, F>(

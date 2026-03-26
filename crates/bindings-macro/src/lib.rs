@@ -18,6 +18,7 @@ pub fn procedure(args: StdTokenStream, item: StdTokenStream) -> StdTokenStream {
     })
 }
 mod reducer;
+mod route;
 
 #[proc_macro_attribute]
 pub fn reducer(args: StdTokenStream, item: StdTokenStream) -> StdTokenStream {
@@ -178,6 +179,37 @@ mod sym {
     }
 }
 
+#[proc_macro_attribute]
+pub fn get(args: StdTokenStream, item: StdTokenStream) -> StdTokenStream {
+    let path: syn::LitStr = syn::parse(args).expect("expected a string literal path like \"/\"");
+    cvt_attr::<ItemFn>(StdTokenStream::new(), item, quote!(), |_args, original_function| {
+        route::route_impl("GET", &path.value(), original_function)
+    })
+}
+
+#[proc_macro_attribute]
+pub fn post(args: StdTokenStream, item: StdTokenStream) -> StdTokenStream {
+    let path: syn::LitStr = syn::parse(args).expect("expected a string literal path like \"/\"");
+    cvt_attr::<ItemFn>(StdTokenStream::new(), item, quote!(), |_args, original_function| {
+        route::route_impl("POST", &path.value(), original_function)
+    })
+}
+
+#[proc_macro_attribute]
+pub fn put(args: StdTokenStream, item: StdTokenStream) -> StdTokenStream {
+    let path: syn::LitStr = syn::parse(args).expect("expected a string literal path like \"/\"");
+    cvt_attr::<ItemFn>(StdTokenStream::new(), item, quote!(), |_args, original_function| {
+        route::route_impl("PUT", &path.value(), original_function)
+    })
+}
+
+#[proc_macro_attribute]
+pub fn delete(args: StdTokenStream, item: StdTokenStream) -> StdTokenStream {
+    let path: syn::LitStr = syn::parse(args).expect("expected a string literal path like \"/\"");
+    cvt_attr::<ItemFn>(StdTokenStream::new(), item, quote!(), |_args, original_function| {
+        route::route_impl("DELETE", &path.value(), original_function)
+    })
+}
 /// It turns out to be shockingly difficult to construct an [`Attribute`].
 /// That type is not [`Parse`], instead having two distinct methods
 /// for parsing "inner" vs "outer" attributes.
